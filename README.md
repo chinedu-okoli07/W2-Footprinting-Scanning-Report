@@ -103,12 +103,12 @@ All work was done within the authorised scope: networkwalks.com and my own LAN. 
 
 Screenshots are stored in the `screenshots/` folder.
 
-![whois](screenshots/1_whois.png)
-![whatweb](screenshots/2_whatweb.png)
-![nslookup](screenshots/3_nslookup.png)
-![curl](screenshots/4_curl.png)
-![wafw00f](screenshots/5_wafw00f.png)
-![dnsrecon](screenshots/6_dnsrecon.png)
+![whois](screenshots/_whois.png)
+![whatweb](screenshots/_whatweb.png)
+![nslookup](screenshots/_nslookup.png)
+![curl](screenshots/_curl.png)
+![wafw00f](screenshots/_wafw00f.png)
+![dnsrecon](screenshots/_dnsrecon.png)
 ![Zenmap scan](screenshots/7_zenmap_scan.png)
 ![Zenmap topology](screenshots/8_zenmap_topology.png)
 
