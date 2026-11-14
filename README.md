@@ -5,7 +5,6 @@
 **Environment:** Kali Linux VM (VirtualBox) | **Date run:** 13 November 2026
 **Scope:** Passive and low-impact reconnaissance only. No exploitation. For educational use.
 
-This file gives the tool-by-tool detail behind Section 4.1 of the main report ([README](README.md)).
 
 ---
 
