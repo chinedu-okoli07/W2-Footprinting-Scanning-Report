@@ -1,117 +1,155 @@
-# PENETRATION TESTING REPORT
+# W2-PM1: Footprinting & Reconnaissance with Multiple Kali Tools
 
-### Footprinting & Network Scanning Phases
+**Programme:** Networkwalks Cybersecurity Internship | **Week 2, Project Module 1**
+**Target:** `networkwalks.com` (the programme's own site, set as the lab target in the task brief)
+**Environment:** Kali Linux VM (VirtualBox) | **Date run:** 13 November 2026
+**Scope:** Passive and low-impact reconnaissance only. No exploitation. For educational use.
 
-**W2-PM-FINAL | CYBERSECURITY | NETWORKWALKS**
-
-| Field | Detail |
-|---|---|
-| **Pentester Name** | Chinedu Okoli |
-| **Program / Batch** | B084, Networkwalks Cybersecurity Internship |
-| **Date** | 13 November 2026 |
-| **Modules completed** | W2-PM1 (Footprinting with Multiple Kali Tools)<br>W2-PM5 (Zenmap Network Scanning) |
-| **Client / Target** | 1. Networkwalks (`networkwalks.com`, written permission on file)<br>2. My own local LAN |
-| **Permission secured from client?** | Yes  |
-| **Phases covered** | Phase 1: Reconnaissance & Footprinting<br>Phase 2: Scanning & Network Discovery |
+This file gives the tool-by-tool detail behind Section 4.1 of the main report ([README](README.md)).
 
 ---
 
-## 1. Liability Disclaimer
+## Objective
 
-All activities in this report were carried out only on systems where I hold written permission (`networkwalks.com` and its DNS records) or on devices and networks I own (my own LAN). This material is for education and research only. Unauthorised access is a crime in most countries, even when nothing is damaged.
+Build a profile of a live target using only publicly available information, and explain how an attacker could use each finding and how a defender can reduce it.
 
-## 2. Introduction
+## Commands used
 
-This report documents Week 2 of the Networkwalks Cybersecurity Internship. W2-PM1 covers the footprinting phase: gathering public information about `networkwalks.com` with six Kali Linux tools. W2-PM5 covers the scanning phase: discovering live hosts on my own local network with Zenmap. Together they show how an attacker moves from public information to a map of live systems, and how a defender can use the same steps to see their own exposure.
+```bash
+whois networkwalks.com
+whatweb networkwalks.com
+nslookup networkwalks.com
+curl -I https://networkwalks.com
+wafw00f networkwalks.com
+dnsrecon -d networkwalks.com
+```
 
-Every step includes the command used, what I observed, a screenshot as evidence, and why the finding matters.
+---
 
-## 3. Tools Used
+## Task 1: whois (domain registration)
 
-| Tool | Purpose |
-|---|---|
-| Kali Linux | Environment for footprinting tools |
-| whois | Domain registration details (registrar, dates, name servers) |
-| whatweb | Fingerprint web technologies (server, CMS, plugins, IP) |
-| nslookup | Resolve the domain to its IP address |
-| curl -I | Read HTTP response headers |
-| wafw00f | Detect a Web Application Firewall |
-| dnsrecon | Enumerate DNS records (NS, MX, SPF/TXT, SRV) |
-| Zenmap (Nmap GUI) | Discover live hosts, IPs and MAC addresses on my LAN |
-| Windows CMD (`ipconfig`) | Identify my local IP and subnet |
+**Command:** `whois networkwalks.com`
 
-## 4. Activities Performed
+**Findings:**
+- Registrar: GoDaddy.com, LLC
+- Created 2019-11-06, registry expiry 2027-11-06, last updated 2025-11-12
+- Name servers: NS6135.HOSTGATOR.COM and NS6136.HOSTGATOR.COM
+- DNSSEC: unsigned
+- Domain status: delete, renew, transfer and update locks are all on
+- Registrant details are hidden behind a privacy service (Domains By Proxy)
 
-### 4.1 Footprinting & Reconnaissance (W2-PM1)
+![whois](screenshots/1_whois.png)
+![whois registrant](screenshots/1b_whois_registrant.png)
 
-Target: `networkwalks.com`. All six commands were run from Kali Linux.
+**Attacker's view:** The name servers show the hosting provider, and dates and contacts help with planning and social engineering.
+**Defender's view:** Registrar locks and privacy are already in place, which is good. Consider enabling DNSSEC.
 
-| Tool | Command | Key finding (from my own output) |
+## Task 2: whatweb (technology fingerprinting)
+
+**Command:** `whatweb networkwalks.com`
+
+**Findings:**
+- HTTP redirects (301) to HTTPS
+- Web server: Apache
+- CMS: WordPress 7.1.4, with WP Download Manager 3.3.76
+- jQuery 3.7.1, Google Tag Manager, Open Graph metadata
+- Server IP: 192.232.216.135
+- Public email address exposed: `info@networkwalks.com`
+- Page title: Networkwalks Academy
+
+![whatweb](screenshots/2_whatweb.png)
+
+**Attacker's view:** Exact software versions can be matched against vulnerability databases. A leaked IP and email support further targeting.
+**Defender's view:** Keep the CMS and plugins patched, remove version strings and generator meta tags, and use a contact form instead of publishing a raw email address.
+
+## Task 3: nslookup (DNS resolution)
+
+**Command:** `nslookup networkwalks.com`
+
+**Findings:** Resolver 8.8.8.8, non-authoritative answer, resolved IP **192.232.216.135**.
+
+![nslookup](screenshots/3_nslookup.png)
+
+**Attacker's view:** The IP lets an attacker look at the hosting network and the wider infrastructure.
+**Defender's view:** A CDN or reverse proxy in front of the origin would avoid exposing the real IP directly.
+
+## Task 4: curl -I (HTTP response headers)
+
+**Command:** `curl -I https://networkwalks.com`
+
+**Findings:**
+- HTTP/1.1 200 OK, `Server: Apache`
+- `Link` header advertises the WordPress REST API at `/wp-json/`
+- Cookie `__wpdm_client` set with Secure and HttpOnly flags
+- Caching headers `X-Nginx-Cache: WordPress` and `X-Endurance-Cache-Level: 0`
+- `Referrer-Policy` and `Permissions-Policy` are present
+- HSTS, Content-Security-Policy and X-Frame-Options did not appear in the response headers
+
+![curl](screenshots/4_curl.png)
+
+**Attacker's view:** Headers fingerprint the stack and point to entry points without loading the page.
+**Defender's view:** Trim the server banner, restrict unneeded API endpoints, and add security headers such as HSTS and Content-Security-Policy.
+
+## Task 5: wafw00f (WAF detection)
+
+**Command:** `wafw00f networkwalks.com`
+
+**Findings:** The site is behind **ModSecurity (SpiderLabs)**, detected with 2 requests.
+
+![wafw00f](screenshots/5_wafw00f.png)
+
+**Attacker's view:** A WAF means naive attempts will be blocked or logged, so an attacker must adapt.
+**Defender's view:** A WAF is a useful layer, but it does not replace patching. Keep its rules tuned and monitor its logs.
+
+## Task 6: dnsrecon (DNS enumeration)
+
+**Command:** `dnsrecon -d networkwalks.com`
+
+**Findings:**
+- SOA and NS: ns6135.hostgator.com (50.87.144.87) and ns6136.hostgator.com (192.232.216.131)
+- DNS software: BIND 9.16.23-RH on both name servers
+- MX: mail.networkwalks.com (192.232.216.135); A record 192.232.216.135
+- SPF: `v=spf1 +a +mx +ip4:50.87.144.87 +include:websitewelcome.com ~all` (soft fail)
+- Google site-verification TXT record
+- 8 cPanel autodiscover SRV records (the "8 Records Found" line counts these SRV records)
+- DNSSEC query returned no answer
+
+![dnsrecon](screenshots/6_dnsrecon.png)
+
+**Attacker's view:** The DNS map reveals mail and hosting setup, service endpoints and software versions that can be searched for known weaknesses.
+**Defender's view:** Hide DNS software versions, consider a hard-fail SPF (`-all`), remove unneeded records, and enable DNSSEC if supported.
+
+---
+
+## Combined target profile
+
+| Category | Finding | Source tool |
 |---|---|---|
-| whois | `whois networkwalks.com` | Registrar GoDaddy; created 2019-11-06, expires 2027-11-06; name servers NS6135/NS6136.HOSTGATOR.COM; DNSSEC unsigned; registrant details hidden by privacy service |
-| whatweb | `whatweb networkwalks.com` | Apache; WordPress 7.1.4; WP Download Manager 3.3.76; jQuery 3.7.1; Google Tag Manager; IP 192.232.216.135; email info@networkwalks.com exposed; HTTP redirects to HTTPS |
-| nslookup | `nslookup networkwalks.com` | 192.232.216.135 (via resolver 8.8.8.8, non-authoritative answer) |
-| curl | `curl -I https://networkwalks.com` | HTTP/1.1 200 OK; `Server: Apache`; WordPress REST API `/wp-json/` advertised in Link header; `__wpdm_client` cookie (Secure, HttpOnly); `X-nginx-cache: WordPress` and `X-Endurance-Cache-Level` headers |
-| wafw00f | `wafw00f networkwalks.com` | Yes: ModSecurity (SpiderLabs), detected with 2 requests (wafw00f v2.3.2) |
-| dnsrecon | `dnsrecon -d networkwalks.com` | MX mail.networkwalks.com; A 192.232.216.135; SPF `~all` (soft fail); Google site-verification TXT; BIND 9.16.23-RH on both name servers; 8 cPanel autodiscover SRV records; DNSSEC query returned no answer |
+| Registrar | GoDaddy.com, LLC (registrant hidden by privacy service) | whois |
+| Created / expires | 2019-11-06 / 2027-11-06 | whois |
+| Name servers / host | NS6135 / NS6136.HOSTGATOR.COM | whois, dnsrecon |
+| Server IP | 192.232.216.135 | nslookup, whatweb |
+| Web server | Apache | whatweb, curl |
+| CMS and version | WordPress 7.1.4 | whatweb |
+| Plugins / libraries | WP Download Manager 3.3.76, jQuery 3.7.1, Google Tag Manager | whatweb |
+| Exposed endpoints | /wp-json/ (WordPress REST API) | curl |
+| Cookies and flags | __wpdm_client (Secure, HttpOnly) | curl |
+| WAF | ModSecurity (SpiderLabs) | wafw00f |
+| Mail server | mail.networkwalks.com (192.232.216.135) | dnsrecon |
+| SPF policy | v=spf1 +a +mx +ip4:50.87.144.87 +include:websitewelcome.com ~all (soft fail) | dnsrecon |
+| DNS software version | BIND 9.16.23-RH | dnsrecon |
+| DNSSEC | Unsigned | whois, dnsrecon |
 
-In W2-PM1, I footprinted networkwalks.com with six Kali Linux tools, using only public information. WHOIS showed that the domain is registered with GoDaddy, that its name servers belong to HostGator, and that DNSSEC is unsigned. WhatWeb identified WordPress 7.1.4 and WP Download Manager 3.3.76. Nslookup resolved the domain to 192.232.216.135. Curl exposed the WordPress REST API endpoint /wp-json/. Wafw00f detected ModSecurity (SpiderLabs), and DNSRecon revealed the mail server, an SPF policy ending in ~all, cPanel service records and BIND 9.16.23-RH. None of these tools attacked the target, which shows why footprinting is quiet and why organisations should regularly review what they publish.
+## Key takeaways
 
-### 4.2 Network Scanning with Zenmap (W2-PM5)
+1. Everything above came from public information, and the target was never attacked, which is why footprinting is hard to detect.
+2. The more an organisation leaks (versions, IPs, emails, endpoints), the easier every later stage becomes.
+3. Defenders run these same tools on their own assets to see what an attacker sees, then reduce it.
+4. These findings feed the scanning and assessment work in the next modules.
 
-Scope: my own local network only.
+## Ethics & scope
 
-1. Found my local IP and subnet: `ipconfig` → 
-2. Entered the subnet as the target in Zenmap and ran a **Ping Scan**.
-3. Live hosts found: [number] → 
-4. MAC addresses identified: 
-5. Opened the **Topology** tab, enabled the legend and saved the topology as a PDF.
-
-
-## 5. Risk Analysis / Impact
-
-| # | Finding | Evidence | Potential impact | Risk level |
-|---|---|---|---|---|
-| 1 | Web technology and version exposed | whatweb: WordPress 7.1.4, WP Download Manager 3.3.76 | Versions can be matched against known advisories | Medium |
-| 2 | Server IP identifiable | nslookup: 192.232.216.135 | Reveals network location of the service | Low |
-| 3 | HTTP technical information exposed | curl: Apache banner, `/wp-json/` link, cache headers | Helps stack fingerprinting and enumeration | Low |
-| 4 | WAF product identifiable | wafw00f: ModSecurity (SpiderLabs) | Reveals part of the security architecture | Low |
-| 5 | DNS infrastructure exposed | dnsrecon: NS, MX, SPF, SRV records, BIND 9.16.23-RH | Helps build an infrastructure profile | Medium |
-| 6 | Live hosts visible on LAN | Zenmap: [number] hosts | Unknown devices may be present | Medium |
-
-These are observations, not confirmed vulnerabilities. Only information gathering and host discovery were performed. No exploitation or vulnerability validation took place.
-
-## 6. Recommendations
-
-1. Review what technology and version information is publicly visible, and remove version strings where possible.
-2. Keep the CMS, plugins and other web software updated.
-3. Review HTTP response headers and restrict unneeded endpoints.
-4. Review DNS records regularly and publish only what is required.
-5. Keep the WAF enabled and tuned.
-6. Periodically scan your own network to keep an inventory of active devices.
-7. Investigate any unknown device found on the network.
-8. Keep network documentation and topology diagrams up to date.
-9. Perform security testing only with authorisation.
-
-## 7. Conclusion
-
-The main lesson is that information gathering is the foundation of everything that follows. Software versions, DNS records, headers and live hosts are not vulnerabilities on their own, but together they give an attacker a map of where to look. The findings in this report are observations only, since no exploitation was attempted. From a SOC analyst's point of view, this activity is also something defenders should be able to detect, such as repeated WHOIS and DNS lookups, header requests and ping sweeps showing up in logs. Running these tools on your own assets first is a practical way to reduce exposure before someone else does.
-
-All work was done within the authorised scope: networkwalks.com and my own LAN. I will carry these findings into the next phases of the programme.
-
-## 8. Evidences Collected
-
-Screenshots are stored in the `screenshots/` folder.
-
-![whois](screenshots/_whois.png)
-![whatweb](screenshots/_whatweb.png)
-![nslookup](screenshots/_nslookup.png)
-![curl](screenshots/_curl.png)
-![wafw00f](screenshots/_wafw00f.png)
-![dnsrecon](screenshots/_dnsrecon.png)
-![Zenmap scan](screenshots/7_zenmap_scan.png)
-![Zenmap topology](screenshots/8_zenmap_topology.png)
-
+All work was done against the target designated in the Networkwalks task brief, using read-only reconnaissance tools. Hacking is only legal on systems you own, in a lab, or with written permission under an agreed scope.
 
 ---
-*#GraceMadeSecurity 
+*Author: Chinedu Okoli | #GraceMadeSecurity
