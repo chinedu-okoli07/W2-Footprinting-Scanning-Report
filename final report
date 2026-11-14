@@ -1,1 +1,171 @@
+# PENETRATION TESTING REPORT
 
+### Footprinting & Network Scanning Phases
+
+**W2-PM-FINAL | CYBERSECURITY | NETWORKWALKS**
+
+| Field | Detail |
+|---|---|
+| **Pentester Name (Cybersecurity Professional)** | Chinedu Okoli |
+| **Program / Batch** | B084 - Networkwalks Cybersecurity Internship |
+| **Date** | 14 November 2026 |
+| **Modules completed** | W2-PM1 (Multiple Kali Tools)<br>W2-PM5 (Zenmap Scanning) |
+| **Client / Target** | 1. Networkwalks (`networkwalks.com`)<br>2. My own local LAN device |
+| **Permission secured from client?** | Yes |
+| **Phases covered** | Phase 1: Reconnaissance & Footprinting<br>Phase 2: Scanning & Network Discovery<br>Phase 3-5: In Progress |
+
+---
+
+## 1. Liability Disclaimer
+
+I performed these activities only on systems and devices where I had permission, or on devices I own myself. All materials are for education and research purposes only. Do not use anything from here to break the law. The instructor, the authors and Networkwalks are not responsible for what you do with this knowledge. Every action you take is your own responsibility. Misuse can lead to criminal charges, heavy fines, loss of your job and a permanent record. In most countries unauthorised access is a crime even when nothing is damaged.
+
+## 2. Introduction
+
+This report covers footprinting the `networkwalks.com` domain using multiple Kali Linux tools (W2-PM1) and scanning my own local device with Zenmap (W2-PM5). One module covers the footprinting phase and the other covers the scanning phase, so together they show how an attacker moves from gathering public information to mapping what is running on a network. It is the Week 2 part of my ongoing internship at Networkwalks.
+
+The footprinting commands were run in Kali Linux on 13 November 2026, and the scan was run from a Windows PC with Zenmap installed on 14 November 2026. Every step below includes the exact command used, the result I observed, a screenshot as evidence, and a short note on why the finding matters from an attacker's point of view.
+
+## 3. Tools Used
+
+| Tool | Purpose |
+|---|---|
+| Kali Linux & Windows | Operating systems used for the reconnaissance and scanning activities |
+| WHOIS | Find domain registration details (registrar, dates, name servers) |
+| whatweb | Fingerprint web technologies (server, CMS, plugins, IP) |
+| nslookup | Resolve the domain name to its IP address using DNS |
+| curl -I | Read the HTTP response headers of the website |
+| wafw00f | Detect whether a Web Application Firewall protects the site |
+| dnsrecon | Enumerate DNS records (NS, MX, SPF, TXT, SRV) |
+| Zenmap (Nmap GUI) | Scan a local host to find open ports, running services and the operating system |
+
+## 4. Activities Performed
+
+### 4.1 Footprinting & Reconnaissance
+
+I performed reconnaissance against the `networkwalks.com` domain using six Kali Linux tools: WHOIS, WhatWeb, Nslookup, Curl, Wafw00f and DNSRecon. Each tool collected a different type of information about the target.
+
+| Tool | Command | Key finding from my output |
+|---|---|---|
+| WHOIS | `whois networkwalks.com` | Registrar GoDaddy; created 2019-11-06, expires 2027-11-06; name servers NS6135/NS6136.HOSTGATOR.COM; DNSSEC unsigned; registrant details hidden by a privacy service |
+| WhatWeb | `whatweb networkwalks.com` | Apache; WordPress 7.1.4; WP Download Manager 3.3.76; jQuery 3.7.1; Google Tag Manager; IP 192.232.216.135; email `info@networkwalks.com` exposed; HTTP redirects to HTTPS |
+| Nslookup | `nslookup networkwalks.com` | 192.232.216.135 (via resolver 8.8.8.8, non-authoritative answer) |
+| Curl | `curl -I https://networkwalks.com` | HTTP/1.1 200 OK; `Server: Apache`; WordPress REST API `/wp-json/` advertised in the Link header; `__wpdm_client` cookie (Secure, HttpOnly); caching headers |
+| Wafw00f | `wafw00f networkwalks.com` | Behind ModSecurity (SpiderLabs), detected with 2 requests |
+| DNSRecon | `dnsrecon -d networkwalks.com` | MX `mail.networkwalks.com`; A 192.232.216.135; SPF ending in `~all` (soft fail); BIND 9.16.23-RH on both name servers; 8 cPanel autodiscover SRV records; DNSSEC query returned no answer |
+
+First, I used WHOIS to obtain publicly available registration information and identify the name servers. The name servers point to HostGator, which tells an attacker who hosts the site, while the registrant's personal details are hidden behind a privacy service.
+
+I then used WhatWeb to identify the technologies used by the website. The results identified WordPress 7.1.4 and WP Download Manager 3.3.76, along with the server IP and a public contact email address.
+
+Using Nslookup, I resolved the domain name to its IP address, 192.232.216.135.
+
+I used Curl with the `-I` option to inspect the HTTP response headers. This showed the Apache server banner and exposed the WordPress REST API endpoint `/wp-json/`.
+
+Next, I used Wafw00f to determine whether a Web Application Firewall was protecting the website. The result identified ModSecurity (SpiderLabs).
+
+Finally, I used DNSRecon to enumerate DNS records. The results covered name servers, the mail server, SPF and TXT records, cPanel service records and the DNS software version (BIND 9.16.23-RH). The "8 Records Found" line in the output refers to the SRV records only.
+
+### 4.2 Network Scanning with Zenmap
+
+For the second activity, I used Zenmap on a Windows PC to scan a device on my own local network, `192.168.100.6`. I used Zenmap's intense scan, which runs this command:
+
+```
+nmap -T4 -A -v 192.168.100.6
+```
+
+This performs a SYN stealth scan of the 1000 most common ports, service/version detection, operating system detection and the default Nmap scripts.
+
+The scan completed in 27.28 seconds and found the host up with very low latency (0.00055 s). The results were:
+
+| Port | State | Service | Version |
+|---|---|---|---|
+| 135/tcp | open | msrpc | Microsoft Windows RPC |
+| 139/tcp | open | netbios-ssn | Microsoft Windows netbios-ssn |
+| 445/tcp | open | microsoft-ds | (not confirmed by the scan) |
+
+The other 997 scanned ports were closed. Nmap identified the operating system as Microsoft Windows 10, with the build estimated between 1809 and 21H2, and a network distance of 0 hops, which shows that the target was the same machine I was scanning from. The SMB2 script reported that **message signing is enabled but not required**.
+
+I then opened the Topology tab in Zenmap and enabled the legend. The host appears as a yellow circle, which according to the legend means a host with 3 to 6 open ports. It is linked to "localhost" by a dashed line, meaning there is no traceroute information.
+
+### Why this matters from an attacker's view
+
+Ports 135, 139 and 445 are the Windows RPC, NetBIOS and SMB file-sharing services. On a local network they tell an attacker that the device is a Windows machine and which services could be targeted. The OS version estimate helps an attacker decide what to look up next, and SMB signing that is not required is a hardening point that matters on shared networks.
+
+## 5. Risk Analysis / Impact
+
+Based on the information collected during the footprinting and scanning activities, I identified the following potential risks.
+
+| # | Risk / Finding | Evidence / Observation | Potential impact | Risk level |
+|---|---|---|---|---|
+| 1 | Web technology information exposed | WhatWeb identified WordPress 7.1.4 and WP Download Manager 3.3.76 | Attackers may use exposed technology and version information to identify software that needs further security review | Medium |
+| 2 | Server IP address identifiable | Nslookup resolved the domain to 192.232.216.135 | Provides information about the network location of the web service | Low |
+| 3 | HTTP technical information exposed | Curl returned HTTP headers and exposed `/wp-json/` | May assist technology fingerprinting and further enumeration | Low |
+| 4 | WAF technology identifiable | Wafw00f identified ModSecurity (SpiderLabs) | Reveals information about the web application's security architecture | Low |
+| 5 | DNS infrastructure information exposed | DNSRecon identified DNS, mail and service records, BIND 9.16.23-RH, SPF `~all`, and unsigned DNSSEC | DNS information can help build a broader infrastructure profile | Medium |
+| 6 | Windows network services open on the local host | Zenmap found ports 135, 139 and 445 open on 192.168.100.6 | Exposed RPC, NetBIOS and SMB services give other devices on the network more to probe | Medium |
+| 7 | SMB message signing not required | Nmap SMB2 script: signing enabled but not required | Weaker protection against tampering or relay-style attacks on a shared network | Medium |
+
+The risks above are observations from the footprinting and scanning exercises, not confirmed vulnerabilities. The practical exercises primarily involved information gathering and host discovery. No exploitation or vulnerability validation was performed as part of these two modules.
+
+Therefore, the presence of information such as a software version, IP address, DNS record or open port does not by itself mean that the system is vulnerable. Further authorized security testing would be required to confirm any actual vulnerability.
+
+## 6. Recommendations
+
+Based on the observations from these activities, I recommend the following security improvements:
+
+1. **Review publicly exposed technology information.** Regularly review what information about web technologies, CMS and plugins is publicly visible, and remove version strings where possible.
+2. **Keep software updated.** CMS platforms, plugins and other web technologies should be updated and reviewed against current security advisories.
+3. **Review HTTP headers.** Check whether unnecessary technical information is exposed, restrict unneeded endpoints such as `/wp-json/`, and consider adding security headers such as HSTS and Content-Security-Policy.
+4. **Review DNS records regularly.** Publish only the required records, hide the DNS software version, review the SPF policy (consider a hard fail `-all`) and consider enabling DNSSEC.
+5. **Properly configure and monitor the WAF.** Keep ModSecurity enabled and tuned, since it already blocks naive attacks.
+6. **Reduce exposed Windows services.** Use the host firewall to restrict ports 135, 139 and 445 so they are reachable only from trusted devices, and disable NetBIOS and file sharing where they are not needed.
+7. **Require SMB signing** where the environment supports it.
+8. **Keep the operating system updated and supported.** Nmap's estimate points to Windows 10, which reached end of support in October 2025, so check updates and the support status or plan a move to a supported version.
+9. **Perform regular internal network discovery.** Periodically scan your own network to identify active devices, and investigate any unexpected device.
+10. **Maintain network documentation.** Document the network topology and device information, and keep them updated.
+11. **Perform security testing with authorization.** Reconnaissance and scanning should only be performed against systems and networks where appropriate permission has been given.
+
+## 7. Conclusion
+
+During Week 2 of my Cybersecurity internship at Networkwalks, I completed practical activities covering footprinting, reconnaissance and network scanning.
+
+In the footprinting activity, I used six Kali Linux tools to collect information about `networkwalks.com`. I learned how WHOIS provides domain registration details, WhatWeb identifies web technologies, Nslookup resolves domain names, Curl inspects HTTP headers, Wafw00f identifies a WAF, and DNSRecon reveals DNS, mail and service records. Together they built a clear profile of the target without ever attacking it.
+
+In the network scanning activity, I used Zenmap to scan a device on my own network. The scan found three open Windows services (RPC, NetBIOS and SMB), estimated the operating system as Windows 10, and showed that SMB signing was not required. I also viewed the result in Zenmap's topology map.
+
+These exercises showed me that information gathering is a core part of cybersecurity. Before attempting to exploit anything, a security professional can learn a significant amount by analysing public information and network responses. None of the findings in this report is a confirmed vulnerability, but together they show where an attacker would look first. From a SOC analyst's point of view, this kind of activity, such as repeated DNS and WHOIS lookups, header requests and port scans, is something defenders should be able to spot in their logs.
+
+I also learned that technical findings should be documented clearly. A good report explains what was done, what was found, what it means, what risk it may create and how to reduce that risk.
+
+Finally, I learned that reconnaissance and scanning must always be performed within an authorised scope. These activities were completed as part of the assigned educational cybersecurity lab, against `networkwalks.com` and my own device.
+
+## 8. Evidences Collected
+
+Screenshots are stored in the `screenshots/` folder.
+
+**W2-PM1: Footprinting (Kali Linux)**
+
+![whois](screenshots/1_whois.png)
+![whois registrant](screenshots/1b_whois_registrant.png)
+![whatweb](screenshots/2_whatweb.png)
+![nslookup](screenshots/3_nslookup.png)
+![curl](screenshots/4_curl.png)
+![wafw00f](screenshots/5_wafw00f.png)
+![dnsrecon](screenshots/6_dnsrecon.png)
+
+**W2-PM5: Zenmap scan of 192.168.100.6**
+
+![Zenmap scan output](screenshots/7_zenmap_scan_1.png)
+![Zenmap scan output with OS details](screenshots/8_zenmap_scan_2.png)
+![Zenmap topology with legend](screenshots/9_zenmap_topology.png)
+
+The raw text outputs of the footprinting tools are saved in the `outputs/` folder.
+
+---
+
+
+**Author:** Chinedu Okoli | Cybersecurity Enthusiast, aspiring SOC Analyst
+**Project Information:** Cybersecurity Internship at Networkwalks | Week 02 | Repository: GitHub
+
+*#GraceMadeSecurity
